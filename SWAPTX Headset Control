@@ -1,0 +1,962 @@
+#include <WiFi.h>
+#include <esp_now.h> // espnow library
+#include <esp_wifi.h> // needed for resetting the mac address
+#include <HardwareSerial.h> // used for setting up the serial communications on non RX/TX pins
+//******************************************************************************
+// serial definitions for LoRa
+#define SERIAL1_RXPIN 22 // TO Serial
+#define SERIAL1_TXPIN 23 // TO Serial
+// MAC ADDRESSES USED
+uint8_t newMACAddress[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xFF};
+//uint8_t newMACAddress[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x04};
+uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};// player number 1
+uint8_t arcadebroadcastAddress1[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+// player number 2
+uint8_t arcadebroadcastAddress2[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x02};  
+// player number 3
+uint8_t arcadebroadcastAddress3[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x03}; 
+// player number 4
+uint8_t arcadebroadcastAddress4[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x04}; 
+// player number 5
+uint8_t arcadebroadcastAddress5[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x05}; 
+// player number 6
+uint8_t arcadebroadcastAddress6[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x06};
+// player number 7
+uint8_t arcadebroadcastAddress7[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x07}; 
+// player number 8
+uint8_t arcadebroadcastAddress8[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x08}; 
+// player number 9
+uint8_t arcadebroadcastAddress9[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x09}; 
+// player number 10
+uint8_t arcadebroadcastAddress10[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x0a}; 
+// player number 11
+uint8_t arcadebroadcastAddress11[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x0b}; 
+// player number 12
+uint8_t arcadebroadcastAddress12[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x0c}; 
+// player number 13
+uint8_t arcadebroadcastAddress13[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x0d};
+// player number 14
+uint8_t arcadebroadcastAddress14[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x0e}; 
+// player number 15
+uint8_t arcadebroadcastAddress15[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x0f}; 
+// player number 16
+uint8_t arcadebroadcastAddress16[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x10}; 
+
+// NEEDED VARIABLES
+String StringToTransmit;
+String StringToBroadcast;
+String tokenStrings[40]; // used to break out the incoming data for checks/balances
+char *ptr = NULL; // used for initializing and ending string break up.
+bool ARCADENEXTBROADCAST = false;
+byte arcadeplayernumber = 0;
+//******************************************************************************
+void Transmit() {
+  // LETS SEND SOMETHING:
+  Serial.print("Transmitting via Serial: "); // printing to serial monitor
+  Serial.println(StringToTransmit);
+  Serial1.println(StringToTransmit); // used to send a data packet
+}
+void formatMacAddress(const uint8_t *macAddr, char *buffer, int maxLength)
+// Formats MAC Address
+{
+  snprintf(buffer, maxLength, "%02x:%02x:%02x:%02x:%02x:%02x", macAddr[0], macAddr[1], macAddr[2], macAddr[3], macAddr[4], macAddr[5]);
+}
+void receiveCallback(const uint8_t *macAddr, const uint8_t *data, int dataLen)
+// Called when data is received
+{
+  // Only allow a maximum of 250 characters in the message + a null terminating byte
+  char buffer[ESP_NOW_MAX_DATA_LEN + 1];
+  int msgLen = min(ESP_NOW_MAX_DATA_LEN, dataLen);
+  strncpy(buffer, (const char *)data, msgLen);
+ 
+  // Make sure we are null terminated
+  buffer[msgLen] = 0;
+ 
+  // Format the MAC address
+  char macStr[18];
+  formatMacAddress(macAddr, macStr, 18);
+ 
+  // Send Debug log message to the serial port
+  Serial.printf("Received message from: %s - %s\n", macStr, buffer);
+  
+  // store and separate the buffer
+  StringToTransmit = String(buffer);
+  if (StringToTransmit.startsWith("36,101") || StringToTransmit.startsWith("36,79") || StringToTransmit.startsWith("36,82")) {
+    Transmit();  
+  }
+  if (StringToTransmit.startsWith("$")) {
+    Transmit();  
+  }
+  if (StringToTransmit.startsWith("36,10")) {
+    Transmit();  
+  }
+  if (StringToTransmit.startsWith("36,82")) {
+    Transmit();  
+  }
+  if (StringToTransmit.startsWith("36,79")) {
+    Transmit();  
+  }
+}
+void sentCallback(const uint8_t *macAddr, esp_now_send_status_t status)
+// Called when data is sent
+{
+  char macStr[18];
+  formatMacAddress(macAddr, macStr, 18);
+  Serial.print("Last Packet Sent to: ");
+  Serial.println(macStr);
+  Serial.print("Last Packet Send Status: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+void arcadebroadcast1(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress1, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress1))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress1, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 1");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast2(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress2, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress2))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress2, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 2");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast3(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress3, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress3))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress3, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 3");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast4(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress4, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress4))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress4, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 4");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast5(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress5, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress5))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress5, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 5");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast6(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress6, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress6))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress6, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 6");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast7(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress7, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress7))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress7, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 7");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast8(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress8, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress8))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress8, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 8");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast9(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress9, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress9))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress9, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 9");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast10(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress10, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress10))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress10, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 10");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast11(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress11, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress11))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress11, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 11");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast12(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress12, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress12))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress12, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 12");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast13(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress13, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress13))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress13, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 13");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast14(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress14, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress14))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress14, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 14");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast15(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress15, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress15))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress15, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 15");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void arcadebroadcast16(const String &message)
+// Emulates a broadcast
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, arcadebroadcastAddress16, 6);
+  if (!esp_now_is_peer_exist(arcadebroadcastAddress16))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(arcadebroadcastAddress16, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Arcade Broadcast message success to player 16");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+void broadcast(const String &message)
+// Emulates a broadcast
+{
+  // Broadcast a message to every device in range
+  //uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, broadcastAddress, 6);
+  if (!esp_now_is_peer_exist(broadcastAddress))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(broadcastAddress, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Broadcast message success");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+// object to used to change esp default mac to custom mac
+void ChangeMACaddress() {
+  Serial.print("[OLD] ESP32 Board MAC Address:  ");
+  Serial.println(WiFi.macAddress());
+  esp_wifi_set_mac(ESP_IF_WIFI_STA, &newMACAddress[0]);
+  Serial.print("[NEW] ESP32 Board MAC Address:  ");
+  Serial.println(WiFi.macAddress());
+}
+void IntializeESPNOW() {
+  // run the object for changing the esp default mac address
+  ChangeMACaddress();
+  // Initialize ESP-NOW
+  if (esp_now_init() == ESP_OK)
+  {
+    Serial.println("ESP-NOW Init Success");
+    esp_now_register_recv_cb(receiveCallback);
+    esp_now_register_send_cb(sentCallback);
+  }
+  else
+  {
+    Serial.println("ESP-NOW Init Failed");
+    delay(3000);
+    ESP.restart();
+  }
+}
+//****************************************************
+void setup(){
+  // Serial port for debugging purposes
+  Serial.begin(115200);
+  Serial.println("Starting WiFi");
+  WiFi.mode(WIFI_STA);
+  esp_wifi_set_protocol(WIFI_IF_AP,WIFI_PROTOCOL_LR);
+  esp_wifi_set_protocol(WIFI_IF_STA,WIFI_PROTOCOL_LR);
+  //esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  //esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  //***********************************************************************
+  // Start ESP Now
+  Serial.print("ESP Board MAC Address:  ");
+  Serial.println(WiFi.macAddress());
+  Serial.println("Starting ESPNOW");
+  IntializeESPNOW();
+  //***********************************************************************
+  // initialize LoRa Serial Comms and network settings:
+  Serial.println("Initializing Serial");
+  Serial1.begin(115200, SERIAL_8N1, SERIAL1_RXPIN, SERIAL1_TXPIN); // setting up the LoRa pins
+}
+//***************************************************************************
+void loop() {
+  // LISTEN TO SERIAL INPUT FOR DATA TO SEND VIA ESPNOW
+  if(Serial1.available()>0){ 
+    // checking to see if there is anything incoming from the SERIAL PINS
+    StringToBroadcast = Serial1.readStringUntil('\n');
+    if (StringToBroadcast.startsWith("test")) {
+      StringToTransmit = "success";
+      Serial1.println(StringToTransmit);
+    }
+    String SendMe = StringToBroadcast;
+    Serial.println("Serial Data Received: " + StringToBroadcast);
+    if (ARCADENEXTBROADCAST) {
+      ARCADENEXTBROADCAST = false;
+      if (arcadeplayernumber == 0) {
+        arcadebroadcast1(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 1) {
+        arcadebroadcast2(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 2) {
+        arcadebroadcast3(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 3) {
+        arcadebroadcast4(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 4) {
+        arcadebroadcast5(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 5) {
+        arcadebroadcast6(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 6) {
+        arcadebroadcast7(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 7) {
+        arcadebroadcast8(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 8) {
+        arcadebroadcast9(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 9) {
+        arcadebroadcast10(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 10) {
+        arcadebroadcast11(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 11) {
+        arcadebroadcast12(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 12) {
+        arcadebroadcast13(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 13) {
+        arcadebroadcast14(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 14) {
+        arcadebroadcast15(StringToBroadcast);
+      }
+      if (arcadeplayernumber == 15) {
+        arcadebroadcast16(StringToBroadcast);
+      }
+    } else {
+      if (StringToTransmit.startsWith("arcade")) {
+        char *ptr = strtok((char*)StringToBroadcast.c_str(), ",");
+        int index = 0;
+        while (ptr != NULL){
+          tokenStrings[index] = ptr;
+          index++;
+          ptr = strtok(NULL, ",");  // takes a list of delimiters
+          //Serial.println("Token " + String(index) + ": " + tokenStrings[index]);
+        }
+        ARCADENEXTBROADCAST = true;
+        arcadeplayernumber = tokenStrings[1].toInt();
+        Serial.println("Player to Start: " + String(arcadeplayernumber));
+        // if arcadeplayernumber == 0, player number 1
+      } else {
+        broadcast(SendMe);
+        Serial.print("Broadcasted: ");
+        Serial.println(SendMe);
+      }
+    }
+  }
+  if (Serial.available() > 0) {
+    String str = Serial.readString();
+    Serial1.println(str);
+    Serial.println("Sent via device serial: " + str);
+    // send "test for verification"
+  }
+}
