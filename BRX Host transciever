@@ -1,0 +1,702 @@
+#include <WiFi.h>
+#include <esp_now.h> // espnow library
+#include <esp_wifi.h> // needed for resetting the mac address
+#include <HardwareSerial.h> // used for setting up the serial communications on non RX/TX pins
+#include <esp_task_wdt.h>
+//******************************************************************************
+// serial definitions for LoRa
+#define SERIAL1_RXPIN 22 // TO Serial
+#define SERIAL1_TXPIN 23 // TO Serial
+// MAC ADDRESSES USED
+byte PlayerInGame[64];
+String FullConvertedAddress = "";
+String Player1 = "";
+String Player2 = "";
+String Player3 = "";
+String Player4 = "";
+String Player5 = "";
+String Player6 = "";
+String Player7 = "";
+String Player8 = "";
+String Player9 = "";
+String Player10 = "";
+String Player11 = "";
+String Player12 = "";
+String Player13 = "";
+String Player14 = "";
+String Player15 = "";
+String Player16 = "";
+String Player17 = "";
+String Player18 = "";
+String Player19 = "";
+String Player20 = "";
+String Player21 = "";
+String Player22 = "";
+String Player23 = "";
+String Player24 = "";
+String Player25 = "";
+String Player26 = "";
+String Player27 = "";
+String Player28 = "";
+String Player29 = "";
+String Player30 = "";
+String Player31 = "";
+String Player32 = "";
+String Player33 = "";
+String Player34 = "";
+String Player35 = "";
+String Player36 = "";
+String Player37 = "";
+String Player38 = "";
+String Player39 = "";
+String Player40 = "";
+String Player41 = "";
+String Player42 = "";
+String Player43 = "";
+String Player44 = "";
+String Player45 = "";
+String Player46 = "";
+String Player47 = "";
+String Player48 = "";
+String Player49 = "";
+String Player50 = "";
+String Player51 = "";
+String Player52 = "";
+String Player53 = "";
+String Player54 = "";
+String Player55 = "";
+String Player56 = "";
+String Player57 = "";
+String Player58 = "";
+String Player59 = "";
+String Player60 = "";
+String Player61 = "";
+String Player62 = "";
+String Player63 = "";
+String Player64 = "";
+String Player65 = "";
+String Player66 = "";
+String Player67 = "";
+String Player68 = "";
+String Player69 = "";
+String Player70 = "";
+String Player71 = "";
+String Player72 = "";
+String Player73 = "";
+String Player74 = "";
+String Player75 = "";
+String Player76 = "";
+String Player77 = "";
+String Player78 = "";
+String Player79 = "";
+String Player80 = "";
+String Player81 = "";
+String Player82 = "";
+String Player83 = "";
+String Player84 = "";
+String Player85 = "";
+String Player86 = "";
+String Player87 = "";
+String Player88 = "";
+String Player89 = "";
+String Player90 = "";
+String Player91 = "";
+String Player92 = "";
+String Player93 = "";
+int PlayerCounter = 0;
+uint8_t newMACAddress[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xFF};
+uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};// All Players
+uint8_t SingleDeviceAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};// player number 1
+// NEEDED VARIABLES
+String StringToTransmit;
+String StringToBroadcast;
+String tokenStrings[40]; // used to break out the incoming data for checks/balances
+char *ptr = NULL; // used for initializing and ending string break up.
+bool ARCADENEXTBROADCAST = false;
+byte arcadeplayernumber = 0;
+bool INGAME = false;
+bool PLAYERUNLOCK = false;
+String StartBeacon = "";
+String IndividualStartBeacon = "";
+String LockBeacon = "";
+String BroadcastData = "";
+byte BroadcastCounter = 0;
+String BroadcastData2 = "";
+byte BroadcastCounter2 = 0;
+String BroadcastData3 = "";
+byte BroadcastCounter3 = 0;
+long LastBroadcast = 0;
+long LastBroadcast2 = 0;
+long LastBroadcast3 = 0;
+long LastScoreUpdate = 0;
+String DataToHost = "";
+bool NEWSCOREUPDATE = false;
+//******************************************************************************
+
+void formatMacAddress(const uint8_t *macAddr, char *buffer, int maxLength)
+// Formats MAC Address
+{
+  snprintf(buffer, maxLength, "%02x:%02x:%02x:%02x:%02x:%02x", macAddr[0], macAddr[1], macAddr[2], macAddr[3], macAddr[4], macAddr[5]);
+  //Serial.print("Decimal Mac Address: ");
+  FullConvertedAddress = String(macAddr[0]) + String(macAddr[1]) + String(macAddr[2]) + String(macAddr[3]) + String(macAddr[4]) + String(macAddr[5]);
+  //Serial.println(FullConvertedAddress);
+  SingleDeviceAddress[0] = macAddr[0];
+  SingleDeviceAddress[1] = macAddr[1];
+  SingleDeviceAddress[2] = macAddr[2];
+  SingleDeviceAddress[3] = macAddr[3];
+  SingleDeviceAddress[4] = macAddr[4];
+  SingleDeviceAddress[5] = macAddr[5];
+}
+void RunNewPlayerRegistration() {
+  byte PlayerID = 1;
+  bool NEWPLAYERREGISTRY = true;
+  if (FullConvertedAddress == Player1) {PlayerID = 1; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player2) {PlayerID = 2; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player3) {PlayerID = 3; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player4) {PlayerID = 4; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player5) {PlayerID = 5; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player6) {PlayerID = 6; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player7) {PlayerID = 7; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player8) {PlayerID = 8; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player9) {PlayerID = 9; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player10) {PlayerID = 10; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player11) {PlayerID = 11; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player12) {PlayerID = 12; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player13) {PlayerID = 13; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player14) {PlayerID = 14; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player15) {PlayerID = 15; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player16) {PlayerID = 16; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player17) {PlayerID = 17; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player18) {PlayerID = 18; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player19) {PlayerID = 19; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player20) {PlayerID = 20; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player21) {PlayerID = 21; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player22) {PlayerID = 22; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player23) {PlayerID = 23; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player24) {PlayerID = 24; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player25) {PlayerID = 25; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player26) {PlayerID = 26; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player27) {PlayerID = 27; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player28) {PlayerID = 28; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player29) {PlayerID = 29; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player30) {PlayerID = 30; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player31) {PlayerID = 31; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player32) {PlayerID = 32; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player33) {PlayerID = 33; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player34) {PlayerID = 34; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player35) {PlayerID = 35; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player36) {PlayerID = 36; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player37) {PlayerID = 37; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player38) {PlayerID = 38; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player39) {PlayerID = 39; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player40) {PlayerID = 40; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player41) {PlayerID = 41; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player42) {PlayerID = 42; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player43) {PlayerID = 43; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player44) {PlayerID = 44; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player45) {PlayerID = 45; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player46) {PlayerID = 46; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player47) {PlayerID = 47; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player48) {PlayerID = 48; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player49) {PlayerID = 49; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player50) {PlayerID = 50; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player51) {PlayerID = 51; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player52) {PlayerID = 52; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player53) {PlayerID = 53; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player54) {PlayerID = 54; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player55) {PlayerID = 55; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player56) {PlayerID = 56; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player57) {PlayerID = 57; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player58) {PlayerID = 58; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player59) {PlayerID = 59; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player60) {PlayerID = 60; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player61) {PlayerID = 61; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player62) {PlayerID = 62; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player63) {PlayerID = 63; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player64) {PlayerID = 64; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player65) {PlayerID = 65; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player66) {PlayerID = 66; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player67) {PlayerID = 67; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player68) {PlayerID = 68; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player69) {PlayerID = 69; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player70) {PlayerID = 70; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player71) {PlayerID = 71; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player72) {PlayerID = 72; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player73) {PlayerID = 73; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player74) {PlayerID = 74; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player75) {PlayerID = 75; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player76) {PlayerID = 76; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player77) {PlayerID = 77; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player78) {PlayerID = 78; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player79) {PlayerID = 79; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player80) {PlayerID = 80; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player81) {PlayerID = 81; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player82) {PlayerID = 82; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player83) {PlayerID = 83; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player84) {PlayerID = 84; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player85) {PlayerID = 85; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player86) {PlayerID = 86; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player87) {PlayerID = 87; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player88) {PlayerID = 88; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player89) {PlayerID = 89; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player90) {PlayerID = 90; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player91) {PlayerID = 91; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player92) {PlayerID = 92; NEWPLAYERREGISTRY = false;}
+  if (FullConvertedAddress == Player93) {PlayerID = 93; NEWPLAYERREGISTRY = false;}
+  if (NEWPLAYERREGISTRY) {
+    Serial.println("This Player has not registered to play yet, now registering player");
+    PlayerCounter++;
+    if (PlayerCounter > 62) {
+      PlayerCounter = 1;
+    }
+    if (PlayerCounter == 1) {Player1 = FullConvertedAddress;}
+    if (PlayerCounter == 2) {Player2 = FullConvertedAddress;}
+    if (PlayerCounter == 3) {Player3 = FullConvertedAddress;}
+    if (PlayerCounter == 4) {Player4 = FullConvertedAddress;}
+    if (PlayerCounter == 5) {Player5 = FullConvertedAddress;}
+    if (PlayerCounter == 6) {Player6 = FullConvertedAddress;}
+    if (PlayerCounter == 7) {Player7 = FullConvertedAddress;}
+    if (PlayerCounter == 8) {Player8 = FullConvertedAddress;}
+    if (PlayerCounter == 9) {Player9 = FullConvertedAddress;}
+    if (PlayerCounter == 10) {Player10 = FullConvertedAddress;}
+    if (PlayerCounter == 11) {Player11 = FullConvertedAddress;}
+    if (PlayerCounter == 12) {Player12 = FullConvertedAddress;}
+    if (PlayerCounter == 13) {Player13 = FullConvertedAddress;}
+    if (PlayerCounter == 14) {Player14 = FullConvertedAddress;}
+    if (PlayerCounter == 15) {Player15 = FullConvertedAddress;}
+    if (PlayerCounter == 16) {Player16 = FullConvertedAddress;}
+    if (PlayerCounter == 17) {Player17 = FullConvertedAddress;}
+    if (PlayerCounter == 18) {Player18 = FullConvertedAddress;}
+    if (PlayerCounter == 19) {Player19 = FullConvertedAddress;}
+    if (PlayerCounter == 20) {Player20 = FullConvertedAddress;}
+    if (PlayerCounter == 21) {Player21 = FullConvertedAddress;}
+    if (PlayerCounter == 22) {Player22 = FullConvertedAddress;}
+    if (PlayerCounter == 23) {Player23 = FullConvertedAddress;}
+    if (PlayerCounter == 24) {Player24 = FullConvertedAddress;}
+    if (PlayerCounter == 25) {Player25 = FullConvertedAddress;}
+    if (PlayerCounter == 26) {Player26 = FullConvertedAddress;}
+    if (PlayerCounter == 27) {Player27 = FullConvertedAddress;}
+    if (PlayerCounter == 28) {Player28 = FullConvertedAddress;}
+    if (PlayerCounter == 29) {Player29 = FullConvertedAddress;}
+    if (PlayerCounter == 30) {Player30 = FullConvertedAddress;}
+    if (PlayerCounter == 31) {Player31 = FullConvertedAddress;}
+    if (PlayerCounter == 32) {Player32 = FullConvertedAddress;}
+    if (PlayerCounter == 33) {Player33 = FullConvertedAddress;}
+    if (PlayerCounter == 34) {Player34 = FullConvertedAddress;}
+    if (PlayerCounter == 35) {Player35 = FullConvertedAddress;}
+    if (PlayerCounter == 36) {Player36 = FullConvertedAddress;}
+    if (PlayerCounter == 37) {Player37 = FullConvertedAddress;}
+    if (PlayerCounter == 38) {Player38 = FullConvertedAddress;}
+    if (PlayerCounter == 39) {Player39 = FullConvertedAddress;}
+    if (PlayerCounter == 40) {Player40 = FullConvertedAddress;}
+    if (PlayerCounter == 41) {Player41 = FullConvertedAddress;}
+    if (PlayerCounter == 42) {Player42 = FullConvertedAddress;}
+    if (PlayerCounter == 43) {Player43 = FullConvertedAddress;}
+    if (PlayerCounter == 44) {Player44 = FullConvertedAddress;}
+    if (PlayerCounter == 45) {Player45 = FullConvertedAddress;}
+    if (PlayerCounter == 46) {Player46 = FullConvertedAddress;}
+    if (PlayerCounter == 47) {Player47 = FullConvertedAddress;}
+    if (PlayerCounter == 48) {Player48 = FullConvertedAddress;}
+    if (PlayerCounter == 49) {Player49 = FullConvertedAddress;}
+    if (PlayerCounter == 50) {Player50 = FullConvertedAddress;}
+    if (PlayerCounter == 51) {Player51 = FullConvertedAddress;}
+    if (PlayerCounter == 52) {Player52 = FullConvertedAddress;}
+    if (PlayerCounter == 53) {Player53 = FullConvertedAddress;}
+    if (PlayerCounter == 54) {Player54 = FullConvertedAddress;}
+    if (PlayerCounter == 55) {Player55 = FullConvertedAddress;}
+    if (PlayerCounter == 56) {Player56 = FullConvertedAddress;}
+    if (PlayerCounter == 57) {Player57 = FullConvertedAddress;}
+    if (PlayerCounter == 58) {Player58 = FullConvertedAddress;}
+    if (PlayerCounter == 59) {Player59 = FullConvertedAddress;}
+    if (PlayerCounter == 60) {Player60 = FullConvertedAddress;}
+    if (PlayerCounter == 61) {Player61 = FullConvertedAddress;}
+    if (PlayerCounter == 62) {Player62 = FullConvertedAddress;}
+    if (PlayerCounter == 63) {Player63 = FullConvertedAddress;}
+    if (PlayerCounter == 64) {Player64 = FullConvertedAddress;}
+    if (PlayerCounter == 65) {Player65 = FullConvertedAddress;}
+    if (PlayerCounter == 66) {Player66 = FullConvertedAddress;}
+    if (PlayerCounter == 67) {Player67 = FullConvertedAddress;}
+    if (PlayerCounter == 68) {Player68 = FullConvertedAddress;}
+    if (PlayerCounter == 69) {Player69 = FullConvertedAddress;}
+    if (PlayerCounter == 70) {Player70 = FullConvertedAddress;}
+    if (PlayerCounter == 71) {Player71 = FullConvertedAddress;}
+    if (PlayerCounter == 72) {Player72 = FullConvertedAddress;}
+    if (PlayerCounter == 73) {Player73 = FullConvertedAddress;}
+    if (PlayerCounter == 74) {Player74 = FullConvertedAddress;}
+    if (PlayerCounter == 75) {Player75 = FullConvertedAddress;}
+    if (PlayerCounter == 76) {Player76 = FullConvertedAddress;}
+    if (PlayerCounter == 77) {Player77 = FullConvertedAddress;}
+    if (PlayerCounter == 78) {Player78 = FullConvertedAddress;}
+    if (PlayerCounter == 79) {Player79 = FullConvertedAddress;}
+    if (PlayerCounter == 80) {Player80 = FullConvertedAddress;}
+    if (PlayerCounter == 81) {Player81 = FullConvertedAddress;}
+    if (PlayerCounter == 82) {Player82 = FullConvertedAddress;}
+    if (PlayerCounter == 83) {Player83 = FullConvertedAddress;}
+    if (PlayerCounter == 84) {Player84 = FullConvertedAddress;}
+    if (PlayerCounter == 85) {Player85 = FullConvertedAddress;}
+    if (PlayerCounter == 86) {Player86 = FullConvertedAddress;}
+    if (PlayerCounter == 87) {Player87 = FullConvertedAddress;}
+    if (PlayerCounter == 88) {Player88 = FullConvertedAddress;}
+    if (PlayerCounter == 89) {Player89 = FullConvertedAddress;}
+    if (PlayerCounter == 90) {Player90 = FullConvertedAddress;}
+    if (PlayerCounter == 91) {Player91 = FullConvertedAddress;}
+    if (PlayerCounter == 92) {Player92 = FullConvertedAddress;}
+    if (PlayerCounter == 93) {Player93 = FullConvertedAddress;}
+    PlayerID = PlayerCounter;
+  } else {
+    Serial.println("Player already Registered, Sending repeat registration beacon");
+  }
+  if (PlayerID > 31) {
+    if (PlayerID < 63) {
+      PlayerID = PlayerID - 31;
+    } else {
+      PlayerID = PlayerID - 62;
+    }
+  }
+  String SendMe = "$GIV," + FullConvertedAddress + "," + String(PlayerID) + "," + "4,0,0,0,0,0,75,0,1,*";
+  BroadcastData = SendMe;
+  BroadcastCounter = 1;
+  Serial.println("Sent via ESPNOW: " + SendMe);
+}
+void receiveCallback(const uint8_t *macAddr, const uint8_t *data, int dataLen)
+// Called when data is received
+{
+  // Only allow a maximum of 250 characters in the message + a null terminating byte
+  char buffer[ESP_NOW_MAX_DATA_LEN + 1];
+  int msgLen = min(ESP_NOW_MAX_DATA_LEN, dataLen);
+  strncpy(buffer, (const char *)data, msgLen);
+ 
+  // Make sure we are null terminated
+  buffer[msgLen] = 0;
+ 
+  // Format the MAC address
+  char macStr[18];
+  formatMacAddress(macAddr, macStr, 18);
+ 
+  // Send Debug log message to the serial port
+  
+  Serial.printf("Received message from: %s - %s\n", macStr, buffer);
+  
+  // store and separate the buffer
+  StringToTransmit = String(buffer);
+
+
+  // section blocked temporarily to monitor hosting communication
+  
+  if (StringToTransmit.startsWith("$ASK")) {
+    RunNewPlayerRegistration();
+    if (INGAME) {
+      BroadcastData3 = IndividualStartBeacon;
+      BroadcastCounter3 = 4;
+      Serial.println("Started reset or new player");
+    }
+    if (PLAYERUNLOCK) {
+      BroadcastData3 = LockBeacon;
+      BroadcastCounter3 = 4;
+    }
+  }
+  if (StringToTransmit.startsWith("$AK")) {
+    SplitStringData();
+    // received an in game player acknowledgement, need to respond as well as add this player to the in game player list
+    int tempplayerid = tokenStrings[1].toInt();
+    int tempteamid = tokenStrings[2].toInt();
+    String SendMe = "$AX,"+String(tempplayerid)+","+String(tempteamid)+",0,1,*";
+    BroadcastData = SendMe;
+    BroadcastCounter = 1; 
+    BroadcastData2 = IndividualStartBeacon;
+    BroadcastCounter2 = 1;   
+  }
+  if (StringToTransmit.startsWith("$DD") || StringToTransmit.startsWith("$IF")){
+    // This is a kill notification to track kills
+    if (StringToTransmit == DataToHost) {
+      // This is a duplicate kill from the last one sent to host...
+      long ScoreMillis = millis();
+      if (ScoreMillis - LastScoreUpdate > 4000) {
+        // checking to see if it has been at least 4 seconds since 
+        // last time this same data set was sent to host
+        NEWSCOREUPDATE = true;
+      }
+    } else {
+      NEWSCOREUPDATE = true;
+    }
+    if (NEWSCOREUPDATE) {
+      DataToHost = StringToTransmit;
+      LastScoreUpdate = millis();
+    }
+  }
+    
+}
+void SplitStartStringData() {
+  Serial.println("Serial Data Received: " + StringToTransmit);
+  char *ptr = strtok((char*)StringToBroadcast.c_str(), ",");
+  int index = 0;
+  while (ptr != NULL){
+    tokenStrings[index] = ptr;
+    index++;
+    ptr = strtok(NULL, ",");  // takes a list of delimiters
+    //Serial.println("Token " + String(index) + ": " + tokenStrings[index]);
+  }
+  IndividualStartBeacon = "$AS,1," + tokenStrings[2] + "," + tokenStrings[3] + "," + tokenStrings[4] + "," + tokenStrings[5] + "," + tokenStrings[6] + "," + tokenStrings[7] + ",0,1,*",
+  Serial.println("Individual Start Beacon: " +  IndividualStartBeacon);
+}
+void SplitStringData() {
+  Serial.println("Serial Data Received: " + StringToTransmit);
+  char *ptr = strtok((char*)StringToTransmit.c_str(), ",");
+  int index = 0;
+  while (ptr != NULL){
+    tokenStrings[index] = ptr;
+    index++;
+    ptr = strtok(NULL, ",");  // takes a list of delimiters
+    //Serial.println("Token " + String(index) + ": " + tokenStrings[index]);
+  }
+}
+void sentCallback(const uint8_t *macAddr, esp_now_send_status_t status)
+// Called when data is sent
+{
+  char macStr[18];
+  formatMacAddress(macAddr, macStr, 18);
+  Serial.print("Last Packet Sent to: ");
+  Serial.println(macStr);
+  Serial.print("Last Packet Send Status: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+void broadcast(const String &message)
+// Emulates a broadcast
+{
+  // Broadcast a message to every device in range
+  //uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, broadcastAddress, 6);
+  if (!esp_now_is_peer_exist(broadcastAddress))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(broadcastAddress, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Broadcast message success");
+    Serial.println(message);
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+
+void singlebroadcast(const String &message)
+// Emulates a broadcast
+{
+  // Broadcast a message to every device in range
+  //uint8_t SingleDeviceAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, SingleDeviceAddress, 6);
+  if (!esp_now_is_peer_exist(SingleDeviceAddress))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  // Send message
+  esp_err_t result = esp_now_send(SingleDeviceAddress, (const uint8_t *)message.c_str(), message.length());
+ 
+  // Print results to serial monitor
+  if (result == ESP_OK)
+  {
+    Serial.println("Broadcast message success");
+    Serial.println(message);
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_INIT)
+  {
+    Serial.println("ESP-NOW not Init.");
+  }
+  else if (result == ESP_ERR_ESPNOW_ARG)
+  {
+    Serial.println("Invalid Argument");
+  }
+  else if (result == ESP_ERR_ESPNOW_INTERNAL)
+  {
+    Serial.println("Internal Error");
+  }
+  else if (result == ESP_ERR_ESPNOW_NO_MEM)
+  {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  }
+  else if (result == ESP_ERR_ESPNOW_NOT_FOUND)
+  {
+    Serial.println("Peer not found.");
+  }
+  else
+  {
+    Serial.println("Unknown error");
+  }
+}
+// object to used to change esp default mac to custom mac
+void ChangeMACaddress() {
+  Serial.print("[OLD] ESP32 Board MAC Address:  ");
+  Serial.println(WiFi.macAddress());
+  esp_wifi_set_mac(ESP_IF_WIFI_STA, &newMACAddress[0]);
+  Serial.print("[NEW] ESP32 Board MAC Address:  ");
+  Serial.println(WiFi.macAddress());
+}
+void IntializeESPNOW() {
+  // run the object for changing the esp default mac address
+  ChangeMACaddress();
+  // Initialize ESP-NOW
+  if (esp_now_init() == ESP_OK)
+  {
+    Serial.println("ESP-NOW Init Success");
+    esp_now_register_recv_cb(receiveCallback);
+    esp_now_register_send_cb(sentCallback);
+  }
+  else
+  {
+    Serial.println("ESP-NOW Init Failed");
+    delay(3000);
+    ESP.restart();
+  }
+}
+//****************************************************
+void loop0(void *pvParameters) {
+  Serial.print("Scoring Reporting Function Running on core: ");
+  Serial.println(xPortGetCoreID());;
+  for(;;) { // starts the forever loop on second esp32 core
+    if (NEWSCOREUPDATE) {
+      // LETS SEND SOMETHING:
+      Serial.print("Transmitting via Serial: "); // printing to serial monitor
+      Serial.println(DataToHost);
+      Serial1.println(DataToHost); // used to send a data packet
+      NEWSCOREUPDATE = false;
+    }
+    delay(1);
+  }
+}
+//****************************************************
+void setup(){
+  // disable watchdog
+  esp_task_wdt_init(30, false);
+  // Serial port for debugging purposes
+  Serial.begin(115200);
+  Serial.println("Starting WiFi");
+  WiFi.mode(WIFI_STA);
+  esp_wifi_set_protocol(WIFI_IF_AP,WIFI_PROTOCOL_LR);
+  esp_wifi_set_protocol(WIFI_IF_STA,WIFI_PROTOCOL_LR);
+  //esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  //esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  //***********************************************************************
+  // Start ESP Now
+  Serial.print("ESP Board MAC Address:  ");
+  Serial.println(WiFi.macAddress());
+  Serial.println("Starting ESPNOW");
+  IntializeESPNOW();
+  //***********************************************************************
+  // initialize LoRa Serial Comms and network settings:
+  Serial.println("Initializing Serial");
+  Serial1.begin(115200, SERIAL_8N1, SERIAL1_RXPIN, SERIAL1_TXPIN); // setting up the LoRa pins
+  //***********************************************************************
+  // initialize dual cores and dual loops
+  Serial.print("Apps runninf on core: ");
+  Serial.println(xPortGetCoreID());
+  xTaskCreatePinnedToCore(loop0, "loop0", 10000, NULL, 1, NULL, 0);
+}
+//***************************************************************************
+void loop() {
+  // LISTEN TO SERIAL INPUT FOR DATA TO SEND VIA ESPNOW
+  if(Serial1.available()>0){
+    // checking to see if there is anything incoming from the SERIAL PINS
+    StringToBroadcast = Serial1.readStringUntil('*');
+    Serial.print("Data Received: ");
+    StringToBroadcast = StringToBroadcast + "*";
+    Serial.println(StringToBroadcast);
+    if (StringToBroadcast.startsWith("test")) {
+      StringToTransmit = "Serial Communication is Successfull";
+      Serial1.println(StringToTransmit);
+    }
+    if (StringToBroadcast.startsWith("$AS,1")) {
+      // This is a start beacon from host device
+      StartBeacon = StringToBroadcast;
+      SplitStartStringData();
+      Serial.println("Game Started");
+      INGAME = true;
+      PLAYERUNLOCK = false;
+      BroadcastData = StartBeacon;
+      BroadcastCounter = 5;
+    }
+    if (StringToBroadcast.startsWith("$AS,3")) {
+      // unlock beacon to allow taggers to select teams
+      LockBeacon = StringToBroadcast;
+      PLAYERUNLOCK = true;
+      BroadcastData = LockBeacon;
+      BroadcastCounter = 5;
+    }
+    if (StringToBroadcast.startsWith("$SP")) {
+      // Game ending Beacon
+      Serial.println("Game Ended");
+      INGAME = false;
+      BroadcastData = StringToBroadcast;
+      BroadcastCounter = 5;
+    }
+    if (StringToBroadcast.startsWith("$UP")) {
+      BroadcastData = StringToBroadcast;
+      BroadcastCounter = 5;
+    }
+    if (StringToBroadcast.startsWith("$AX")) {
+      BroadcastData = StringToBroadcast;
+      BroadcastCounter = 1;
+      BroadcastData2 = IndividualStartBeacon;
+      BroadcastCounter2 = 1;
+    }
+  }
+  if (Serial.available() > 0) {
+    String str = Serial.readStringUntil('\r');
+    broadcast(str);
+    Serial1.println(str);
+    Serial.println("Sent via device serial: " + str);
+    // send "test for verification"
+  }
+  if (BroadcastCounter > 0) {
+    long CurrentMillis = millis();
+    if (CurrentMillis - LastBroadcast > 200) {
+      LastBroadcast = millis();
+      BroadcastCounter--;
+      broadcast(BroadcastData);
+    }
+  }
+  if (BroadcastCounter2 > 0) {
+    long CurrentMillis2 = millis();
+    if (CurrentMillis2 - LastBroadcast2 > 350) {
+      LastBroadcast2 = millis();
+      BroadcastCounter2--;
+      broadcast(BroadcastData2);
+    }
+  }
+  if (BroadcastCounter3 > 0) {
+    long CurrentMillis3 = millis();
+    if (CurrentMillis3 - LastBroadcast3 > 350) {
+      LastBroadcast3 = millis();
+      BroadcastCounter3--;
+      singlebroadcast(BroadcastData3);
+    }
+  }
+}
